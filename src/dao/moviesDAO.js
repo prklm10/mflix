@@ -278,19 +278,16 @@ export default class MoviesDAO {
     try {
       const pipeline = [
         {
-          // find the current movie in the "movies" collection
           $match: {
             _id: ObjectId(id),
           },
         },
         {
-          // lookup comments from the "comments" collection
           $lookup: {
             from: "comments",
             let: { id: "$_id" },
             pipeline: [
               {
-                // only join comments with a match movie_id
                 $match: {
                   $expr: {
                     $eq: ["$movie_id", "$$id"],
@@ -298,25 +295,32 @@ export default class MoviesDAO {
                 },
               },
               {
-                // sort by date in descending order
                 $sort: {
                   date: -1,
                 },
               },
             ],
-            // call embedded field comments
             as: "comments",
           },
         },
       ]
       return await movies.aggregate(pipeline).next()
     } catch (e) {
-      console.error(`Something went wrong in getMovieByID, ${e}`)
-      return null
+      // here's how the InvalidId error is identified and handled
+      if (
+        e
+          .toString()
+          .startsWith(
+            "Error: Argument passed in must be a single String of 12 bytes or a string of 24 hex characters",
+          )
+      ) {
+        return null
+      }
+      console.error(`Something went wrong in getMovieByID: ${e}`)
+      throw e
     }
   }
 }
-
 /**
  * This is a parsed query, sort, and project bundle.
  * @typedef QueryParams
