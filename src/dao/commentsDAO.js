@@ -38,14 +38,13 @@ export default class CommentsDAO {
    */
   static async addComment(movieId, user, comment, date) {
     try {
-      // TODO Ticket: Create/Update Comments
-      // Construct the comment document to be inserted into MongoDB.
+      // here's how the commentDoc is constructed
       const commentDoc = {
-        movie_id: ObjectId(movieId),
         name: user.name,
         email: user.email,
+        movie_id: ObjectId(movieId),
         text: comment,
-        date,
+        date: date,
       }
 
       return await comments.insertOne(commentDoc)
@@ -67,11 +66,9 @@ export default class CommentsDAO {
    */
   static async updateComment(commentId, userEmail, text, date) {
     try {
-      // TODO Ticket: Create/Update Comments
-      // Use the commentId and userEmail to select the proper comment, then
-      // update the "text" and "date" fields of the selected comment.
+      // here's how the update is performed
       const updateResponse = await comments.updateOne(
-        { _id: commentId, email: userEmail },
+        { _id: ObjectId(commentId), email: userEmail },
         { $set: { text, date } },
       )
 
@@ -83,47 +80,25 @@ export default class CommentsDAO {
   }
 
   static async deleteComment(commentId, userEmail) {
-    /**
-    Ticket: Delete Comments
-    Implement the deleteOne() call in this method.
-    Ensure the delete operation is limited so only the user can delete their own
-    comments, but not anyone else's comments.
-    */
+    const deleteResponse = await comments.deleteOne({
+      _id: ObjectId(commentId),
+      // the user's email is passed here to make sure they own the comment
+      email: userEmail,
+    })
 
-    try {
-      // TODO Ticket: Delete Comments
-      // Use the userEmail and commentId to delete the proper comment.
-      const deleteResponse = await comments.deleteOne({
-        _id: ObjectId(commentId),
-        email: userEmail,
-      })
-
-      return deleteResponse
-    } catch (e) {
-      console.error(`Unable to delete comment: ${e}`)
-      return { error: e }
-    }
+    return deleteResponse
   }
 
   static async mostActiveCommenters() {
-    /**
-    Ticket: User Report
-    Build a pipeline that returns the 20 most frequent commenters on the MFlix
-    site. You can do this by counting the number of occurrences of a user's
-    email in the `comments` collection.
-    */
     try {
-      // TODO Ticket: User Report
-      // Return the 20 users who have commented the most on MFlix.
-      const pipeline = [
-        { $group: { _id: "$email", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 20 },
-      ]
+      // here's how the pipeline stages are assembled
+      const groupStage = { $group: { _id: "$email", count: { $sum: 1 } } }
+      const sortStage = { $sort: { count: -1 } }
+      const limitStage = { $limit: 20 }
+      const pipeline = [groupStage, sortStage, limitStage]
 
-      // TODO Ticket: User Report
-      // Use a more durable Read Concern here to make sure this data is not stale.
-      const readConcern = comments.readConcern
+      // here's how the Read Concern durability is increased
+      const readConcern = { level: "majority" }
 
       const aggregateResult = await comments.aggregate(pipeline, {
         readConcern,
@@ -131,12 +106,11 @@ export default class CommentsDAO {
 
       return await aggregateResult.toArray()
     } catch (e) {
-      console.error(`Unable to retrieve most active commenters: ${e}`)
+      console.error(`Unable to delete comment: ${e}`)
       return { error: e }
     }
   }
 }
-
 /**
  * Success/Error return object
  * @typedef DAOResponse

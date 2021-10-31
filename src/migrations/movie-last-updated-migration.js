@@ -3,33 +3,19 @@ const ObjectId = require("mongodb").ObjectId
 const MongoError = require("mongodb").MongoError
 require("dotenv").config()
 
-/**
- * Ticket: Migration
- *
- * Update all the documents in the `movies` collection, such that the
- * "lastupdated" field is stored as an ISODate() rather than a string.
- *
- * The Date.parse() method build into Javascript will prove very useful here!
- * Refer to http://mongodb.github.io/node-mongodb-native/3.1/tutorials/crud/#bulkwrite
- */
-
-// This leading semicolon (;) is to signify to the parser that this is a new expression. This expression is an
-// Immediately Invoked Function Expression (IIFE). It's being used to wrap this logic in an asynchronous function
-// so we can use await within.
-// To read more about this type of expression, refer to https://developer.mozilla.org/en-US/docs/Glossary/IIFE
+// This syntax is called an Immediately Invoked Function Executioin (IIFE)
+// It's useful for proper scoping, and in this case allowing us to use
+// async/await syntax
 ;(async () => {
   try {
     const host = process.env.MFLIX_DB_URI
     const client = await MongoClient.connect(host, { useNewUrlParser: true })
     const mflix = client.db(process.env.MFLIX_NS)
 
-    // TODO: Create the proper predicate and projection
-    // add a predicate that checks that the `lastupdated` field exists, and then
-    // check that its type is a string
-    // a projection is not required, but may help reduce the amount of data sent
-    // over the wire!
-    const predicate = { somefield: { $someOperator: true } }
-    const projection = {}
+    const predicate = { lastupdated: { $exists: true, $type: "string" } }
+    // we use the projection here to only return the _id and lastupdated fields
+    const projection = { lastupdated: 1 }
+
     const cursor = await mflix
       .collection("movies")
       .find(predicate, projection)
@@ -42,17 +28,24 @@ require("dotenv").config()
         },
       },
     }))
+    // What's the strange "\x1b[32m"? It's coloring. 31 is red, 32 is green
     console.log(
       "\x1b[32m",
       `Found ${moviesToMigrate.length} documents to update`,
     )
-    // TODO: Complete the BulkWrite statement below
-    const { modifiedCount } = await "some bulk operation"
+    // Here's where we dispatch the bulk update. We destructure the
+    // modifiedCount key out of the result
+
+    const { modifiedCount } = await mflix
+      .collection("movies")
+      .bulkWrite(moviesToMigrate)
 
     console.log("\x1b[32m", `${modifiedCount} documents updated`)
     client.close()
     process.exit(0)
   } catch (e) {
+    // check to see if the error was a MongoError and specifically a
+    // Invalid Operation error, meaning no documents to update
     if (
       e instanceof MongoError &&
       e.message.slice(0, "Invalid Operation".length) === "Invalid Operation"
